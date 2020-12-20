@@ -365,6 +365,8 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  enum intr_level old_level;
+  old_level = intr_disable ();
   struct thread *curr=thread_current();
   
 //if effective priority is the thread priority not a donated priority then change it
@@ -398,6 +400,7 @@ thread_set_priority (int new_priority)
         }
   }
   
+  old_level = intr_disable ();
 }
 
 //compare priority of locks
@@ -418,6 +421,9 @@ thread_get_priority (void)
 void
 set_effective_priority ( struct thread *t, int new_priority)
 {
+  enum intr_level old_level;
+  old_level = intr_disable ();
+  
   t->effective_priority = new_priority;
  
 //if t is a ready thread then resort the ready list
@@ -436,6 +442,7 @@ set_effective_priority ( struct thread *t, int new_priority)
     } 
   }
   
+   old_level = intr_disable ();
   
 }
 

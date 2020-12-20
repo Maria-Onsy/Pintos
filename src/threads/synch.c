@@ -209,7 +209,7 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
   
-  //priority donatiob
+  //priority donation
   if(!thread_mlfqs){
      struct thread *cur=thread_current();
      if(lock->semaphore.value<=0){
