@@ -127,6 +127,10 @@ sema_up (struct semaphore *sema)
      list_sort(&sema->waiters,sema_less_func,NULL);
      struct thread *t=list_entry (list_pop_front (&sema->waiters), struct thread, elem);
      thread_unblock(t);
+  //schedule if unblocked thread effective priority greater than running thread effective priority
+  if(t->effective_priority >= thread_current()->effective_priority){
+    thread_yield();
+  }
    }
    
   intr_set_level (old_level);

@@ -212,6 +212,11 @@ thread_create (const char *name, int priority,
   intr_set_level (old_level);
   /* Add to run queue. */
   thread_unblock (t);
+  
+  //schedule if unblocked thread effective priority greater than running thread effective priority
+  if((t!=  initial_thread)&&(t->effective_priority >= thread_current()->effective_priority)){
+    thread_yield();
+  }
 
   return tid;
 }
@@ -256,11 +261,6 @@ thread_unblock (struct thread *t)
   list_insert_ordered(&ready_list, &t->elem, thread_less_func, NULL);
   t->status = THREAD_READY;
  
-//schedule if unblocked thread effective priority greater than running thread effective priority
-  if((t!=  initial_thread)&&(t->effective_priority >= thread_current()->effective_priority)){
-    thread_yield();
-  }
-
   intr_set_level (old_level);
   
 }
