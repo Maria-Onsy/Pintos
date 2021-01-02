@@ -262,7 +262,6 @@ load (const char *file_name, void (**eip) (void), void **esp)
 
 
   /* Open executable file. */
-  //change it
   file = filesys_open (file_name);
   if (file == NULL) 
     {

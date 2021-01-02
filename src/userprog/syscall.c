@@ -9,7 +9,10 @@
 
 static void syscall_handler (struct intr_frame *);
 static struct lock files_sync_lock;
-void validate_void_ptr(const void* pt);
+static int get_int(int **esp);
+static char* get_char_pointer (char*** esp);
+static void* get_void_pointer (void*** esp);
+static void validate_void_ptr(const void* pt);
 
 
 void
@@ -23,19 +26,20 @@ static void
 syscall_handler (struct intr_frame *f) 
 {
   //modified
-  int sys_code = *(int*)f->esp;
+  int sys_code = get_int((int**)&f->esp);
+  validate_void_ptr((const void*)f->esp);
   switch(sys_code){
        case SYS_HALT:
-       
+            halt_wrapper();
             break;
        case SYS_EXIT:
            exit_wrapper(f->esp);
            break;
        case SYS_EXEC:
-           
+           exec_wrapper(f);
            break;
        case SYS_WAIT:
-          
+           wait_wrapper(f);
            break;
        case SYS_CREATE:
        
@@ -64,38 +68,81 @@ syscall_handler (struct intr_frame *f)
        case SYS_CLOSE:
 
            break;
+       default:
+          exit(-1);
+          break;
 }
 
- // printf ("system call!\n");
-  //thread_exit ();
 }
 
 
+void halt_wrapper(void *esp){
 
+}
 
+void exit_wrapper(void *esp){
+    int* temp = (int*) esp+1;
+    int status = get_int((int**)&temp);
+    validate_void_ptr((const void*)temp);
+    exit(status);
+}
 
+void exec_wrapper(struct intr_frame *f){
+
+}
+
+void wait_wrapper(struct intr_frame *f){
+
+}
+
+void halt(){
+
+}
+
+void exit(int status){
+thread_current()->child_status = status;
+thread_exit();
+}
+
+tid_t exec(const char *cmd_line){
+
+}
+
+int wait(tid_t pid){
+
+}
 
 void write_wrapper(void* esp){
     int fd = *((int*)esp+1);
     void* buffer = (void*)(*((int*)esp+2));
     unsigned size = * ((unsigned*)esp+3);
-    validate_void_ptr(buffer);
+    validate_void_ptr(esp+1);
+    validate_void_ptr(esp+2);
     if(fd==1){
        putbuf (buffer, (size_t) size);
      }
 
 }
 
-void exit_wrapper(void *esp){
-    int status = *((int*)esp+1);
-    thread_current()->child_status = status;
-    thread_exit();
+
+static int get_int(int **esp){
+int pt = **esp;
+return pt;
+}
+
+static char* get_char_pointer (char*** esp){
+char* pt = **esp;
+return pt;
+}
+static void* get_void_pointer (void*** esp){
+void* pt = **esp;
+return pt;
 }
 
 
-void validate_void_ptr(const void* pt){
+static void validate_void_ptr(const void* pt){
     if(!((pt!=NULL)&&(is_user_vaddr(pt))&&(pagedir_get_page (thread_current()->pagedir, pt)!=NULL))){
-         thread_exit();
+         exit(-1);
      }
 }
 
