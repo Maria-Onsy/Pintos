@@ -100,7 +100,7 @@ void halt(){
 }
 
 void exit(int status){
-thread_current()->child_status = status;
+thread_current()->exit_status = status;
 thread_exit();
 }
 

@@ -698,7 +698,7 @@ init_thread (struct thread *t, const char *name, int priority)
   
   //phase2
   #ifdef USERPROG
-  sema_init(&t->wait,0);
+  sema_init(&t->wait_child,0);
   sema_init(&t->parent_child_sync,0);
   list_init(&t->children);
   #endif
