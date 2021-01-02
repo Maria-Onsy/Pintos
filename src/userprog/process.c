@@ -21,6 +21,8 @@
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
+static void push_to_stack(void **esp, char* commond);
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -37,9 +39,15 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+  
+  //modified
+  //extract the name
+  char *context = NULL;
+  char *name = strtok_r(file_name, " ", &context);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (name, PRI_DEFAULT, start_process, fn_copy);
+  sema_down(&thread_current()->parent_child_sync);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
@@ -53,18 +61,44 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+  
+  //modified
+  //extract the name
+  char *temp = palloc_get_page (0);
+  strlcpy(temp, file_name, PGSIZE);
+  char *context = NULL;
+  char *name = strtok_r(file_name, " ", &context);
 
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  
+  //modified
+  success = load (name, &if_.eip, &if_.esp);
+  if(success){
+  //push args to stack
+  push_to_stack(&if_.esp, temp);
+  }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success) 
-    thread_exit ();
+  if (!success) {
+  //modified
+  if(thread_current()->parent !=NULL){
+  sema_up(&thread_current()->parent->parent_child_sync);
+  }
+  
+    thread_exit ();}
+    
+ //modified
+ struct thread *cur = thread_current();
+ if(cur->parent !=NULL){
+  list_push_back(&cur->parent->children, &cur->child_elem);
+  sema_up(&cur->parent->parent_child_sync);
+  //sema_down(&cur->parent_child_sync);
+  }   
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -88,6 +122,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+   sema_down(&thread_current()->wait);
   return -1;
 }
 
@@ -97,6 +132,10 @@ process_exit (void)
 {
   struct thread *cur = thread_current ();
   uint32_t *pd;
+  
+  //modified
+  printf("%s: exit(%d)\n",cur->name, cur->child_status);
+  sema_up(&cur->parent->wait);
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -221,14 +260,17 @@ load (const char *file_name, void (**eip) (void), void **esp)
     goto done;
   process_activate ();
 
+
   /* Open executable file. */
+  //change it
   file = filesys_open (file_name);
   if (file == NULL) 
     {
       printf ("load: %s: open failed\n", file_name);
       goto done; 
     }
-
+  
+  
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
       || memcmp (ehdr.e_ident, "\177ELF\1\1\1", 7)
@@ -301,9 +343,12 @@ load (const char *file_name, void (**eip) (void), void **esp)
         }
     }
 
+
   /* Set up stack. */
   if (!setup_stack (esp))
     goto done;
+
+
 
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
@@ -315,6 +360,58 @@ load (const char *file_name, void (**eip) (void), void **esp)
   file_close (file);
   return success;
 }
+
+static void push_to_stack(void **esp, char* commond){
+
+char *context;
+char *temp = strtok_r(commond, " ",&context);
+int num = 0;
+int words=0;
+char *address[128];
+
+//write each arg
+while(temp != NULL){
+*esp -= strlen(temp)+1;
+memcpy(*esp, temp, strlen(temp)+1);
+address[num] = (char*)*esp;
+num++;
+words += strlen(temp)+1;
+temp = strtok_r(NULL, " ",&context);
+}
+
+//word_align
+words = 4 - (words%4);
+*esp -= words;
+memset(*esp , 0, words);
+
+//write last argument
+*esp -= 4;
+memset(*esp, 0,4);
+
+//write address of each argument
+int c = num-1;
+while(c >= 0){
+*esp -= sizeof (char*);
+memcpy(*esp, &address[c], sizeof (char*));
+c--;
+}
+
+//write address of first arg address
+char** address_of_address = (char**)&*esp;
+memcpy(*esp-sizeof(char**), address_of_address, sizeof (char**));
+*esp-=sizeof(char**);
+
+//write number of arguments
+*esp -= sizeof (int);
+memcpy(*esp, &num, sizeof (int));
+
+//null pointer
+*esp -= sizeof (void *);
+memset(*esp, 0, sizeof(void *));
+
+}
+
+
 
 /* load() helpers. */
 
@@ -441,6 +538,8 @@ setup_stack (void **esp)
       else
         palloc_free_page (kpage);
     }
+    
+    
   return success;
 }
 

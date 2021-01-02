@@ -128,11 +128,19 @@ sema_up (struct semaphore *sema)
      struct thread *t=list_entry (list_pop_front (&sema->waiters), struct thread, elem);
      thread_unblock(t);
   //schedule if unblocked thread effective priority greater than running thread effective priority
+  
+  //phase2
+  #ifdef USERPROG
+   goto done;
+  #endif
+  
   if(t->effective_priority >= thread_current()->effective_priority){
     thread_yield();
   }
    }
    
+   //phase2
+   done:
   intr_set_level (old_level);
 }
 
@@ -256,9 +264,7 @@ lock_try_acquire (struct lock *lock)
   success = sema_try_down (&lock->semaphore);
   if (success){
     lock->holder = thread_current ();
-    if(!thread_mlfqs){
      list_push_back (&thread_current()->holded_locks, &lock->elem); 
-     }  
     }        
   return success;
 }
