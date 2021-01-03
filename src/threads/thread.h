@@ -116,6 +116,9 @@ struct thread
     tid_t waiting_on;
     struct semaphore wait_child;
     struct semaphore parent_child_sync;
+    struct list fd_list; 				//list of file descriptors
+    int fd_size;						//size of the file descriptors
+
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
