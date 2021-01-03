@@ -40,11 +40,14 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
   
+ 
   //modified
   //extract the name
   char *context = NULL;
-  char *name = strtok_r(file_name, " ", &context);
-
+  char *name = palloc_get_page (0);
+  strlcpy (name, file_name, PGSIZE);
+  name = strtok_r(name, " ", &context);
+  
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (name, PRI_DEFAULT, start_process, fn_copy);
   sema_down(&thread_current()->parent_child_sync);
@@ -61,7 +64,6 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-  
   //modified
   //extract the name
   char *temp = palloc_get_page (0);
@@ -78,26 +80,28 @@ start_process (void *file_name_)
   //modified
   success = load (name, &if_.eip, &if_.esp);
   if(success){
-  //push args to stack
-  push_to_stack(&if_.esp, temp);
+    //push args to stack
+    push_to_stack(&if_.esp, temp);
   }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) {
-  //modified
-  if(thread_current()->parent !=NULL){
-  sema_up(&thread_current()->parent->parent_child_sync);
+    //modified
+    if(thread_current()->parent !=NULL){
+      thread_current()->parent->child_creation_sucess = false;
+      sema_up(&thread_current()->parent->parent_child_sync);
+     }
+    exit(-1);
   }
-  
-    thread_exit ();}
     
  //modified
  struct thread *cur = thread_current();
  if(cur->parent !=NULL){
-  list_push_back(&cur->parent->children, &cur->child_elem);
-  sema_up(&cur->parent->parent_child_sync);
-  //sema_down(&cur->parent_child_sync);
+    list_push_back(&cur->parent->children, &cur->child_elem);
+    cur->parent->child_creation_sucess = true;
+    sema_up(&cur->parent->parent_child_sync);
+    sema_down(&cur->parent_child_sync);
   }   
 
   /* Start the user process by simulating a return from an
@@ -120,10 +124,35 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-   sema_down(&thread_current()->wait_child);
-  return -1;
+    struct thread *parent = thread_current();
+    struct list_elem *e;
+    struct thread *child;
+    bool found = false;
+    
+    if(list_empty(&parent->children)){
+       return -1;
+     }
+    
+    for (e = list_begin (&parent->children);e != list_end (&parent->children);e = list_next (e))
+          {
+              child = list_entry (e, struct thread, child_elem);
+              if(child->tid ==child_tid){
+              found = true;
+              break;
+              }
+          }
+    if(!found){
+    return -1;
+    }
+    
+    parent->waiting_on = child->tid;
+    list_remove (&child->child_elem);
+    sema_up(&child->parent_child_sync);
+    sema_down(&parent->wait_child);
+    
+  return parent->child_status;
 }
 
 /* Free the current process's resources. */
@@ -135,7 +164,29 @@ process_exit (void)
   
   //modified
   printf("%s: exit(%d)\n",cur->name, cur->exit_status);
-  sema_up(&cur->parent->wait_child);
+  
+  if(cur->parent != NULL){
+    struct thread *parent = cur->parent;
+    if(parent->waiting_on == cur->tid){
+      parent->child_status = cur->exit_status;
+      parent->waiting_on = -1;
+      sema_up(&cur->parent->wait_child);
+    }  
+    else if(!list_empty(&parent->children)){
+      list_remove (&cur->child_elem);
+    }
+  }
+  
+  if(!list_empty(&cur->children)){
+    struct list_elem *e;
+    struct thread *child;
+    for (e = list_begin (&cur->children);e != list_end (&cur->children);e = list_next (e)){
+              child = list_entry (e, struct thread, child_elem);
+              sema_up(&child->parent_child_sync);
+              child->parent = NULL;         //???
+    }
+  }
+
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -269,6 +320,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
       goto done; 
     }
   
+  file_deny_write (file);
   
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
