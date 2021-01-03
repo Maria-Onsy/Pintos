@@ -118,6 +118,7 @@ struct thread
     struct semaphore parent_child_sync;
     struct list fd_list; 				//list of file descriptors
     int fd_size;						//size of the file descriptors
+    struct file* exec_file;
 
 
     /* Owned by thread.c. */
