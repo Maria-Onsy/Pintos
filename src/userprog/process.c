@@ -203,6 +203,7 @@ process_exit (void)
               list_remove(e);
               if(elem != NULL){
                 file_close(elem->file);
+                free(elem);
               }
               e = temp;       
     }
