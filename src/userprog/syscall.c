@@ -9,9 +9,6 @@
 
 static void syscall_handler (struct intr_frame *);
 static struct lock files_sync_lock;
-static int get_int(int **esp);
-static char* get_char_pointer (char*** esp);
-static void* get_void_pointer (void*** esp);
 static void validate_void_ptr(const void* pt);
 
 
@@ -26,7 +23,6 @@ static void
 syscall_handler (struct intr_frame *f) 
 {
   //modified
- // int sys_code = get_int((int**)&f->esp);
   validate_void_ptr((const void*)f->esp);
   int sys_code = *(int*)f->esp;
   switch(sys_code){
@@ -139,20 +135,6 @@ void write_wrapper(void* esp){
 
 }
 
-
-static int get_int(int **esp){
-int pt = **esp;
-return pt;
-}
-
-static char* get_char_pointer (char*** esp){
-char* pt = **esp;
-return pt;
-}
-static void* get_void_pointer (void*** esp){
-void* pt = **esp;
-return pt;
-}
 
 
 static void validate_void_ptr(const void* pt){

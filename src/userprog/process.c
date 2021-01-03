@@ -183,7 +183,7 @@ process_exit (void)
     for (e = list_begin (&cur->children);e != list_end (&cur->children);e = list_next (e)){
               child = list_entry (e, struct thread, child_elem);
               sema_up(&child->parent_child_sync);
-              child->parent = NULL;         //???
+              child->parent = NULL;         
     }
   }
 
